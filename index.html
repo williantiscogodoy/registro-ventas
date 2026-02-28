@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LC Celulares - Sistema Pro</title>
+    <script src="https://unpkg.com/docx@7.1.0/build/index.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+<!--querido programador:
+    Cuando escribi este código, solo Dios 
+    y yo sabiamos cómo funcionaba
+    ¡Ahorra solo Dios lo sabe!
+    
+    Por lo tanto, si estas intentando optimizar
+    este scrip y falla (seguramente),
+    por favor increenta este contador como una 
+    advertencia para la siguiente persona:
+    
+    total_horas_desperdiciadas_aqui = 163-->
+    <style>
+        :root {
+            --primary: #2563eb; --success: #16a34a; --danger: #dc2626;
+            --warning: #f59e0b; --gray: #64748b; --dark: #1e293b; --bg: #f1f5f9;
+        }
+
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); margin: 0; padding-bottom: 40px; color: var(--dark); }
+        header { background: var(--primary); color: white; padding: 15px; text-align: center; font-weight: 800; font-size: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        
+        .container { max-width: 480px; margin: auto; padding: 15px; }
+
+        .status-banner { padding: 10px; border-radius: 12px; text-align: center; font-weight: bold; margin-bottom: 15px; font-size: 13px; }
+        .status-off { background: #fee2e2; color: var(--danger); border: 1px solid #fecaca; }
+        .status-on { background: #dcfce7; color: var(--success); border: 1px solid #bbf7d0; }
+
+        .card { background: white; padding: 15px; border-radius: 18px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 15px; }
+        
+        button { width: 100%; padding: 14px; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; margin-bottom: 8px; transition: 0.2s; }
+        button:active { transform: scale(0.98); }
+        .btn-start { background: var(--success); color: white; }
+        .btn-end { background: var(--danger); color: white; }
+        .btn-sale { background: var(--primary); color: white; }
+        .btn-hist { background: var(--dark); color: white; }
+
+        .item { display: flex; justify-content: space-between; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid #f1f5f9; }
+        .item.devuelto { color: var(--danger); text-decoration: line-through; opacity: 0.5; }
+        .item-info b { display: block; font-size: 15px; }
+        .item-info small { color: var(--gray); display: block; font-size: 11px; }
+        
+        .tag-v { background: #fef9c3; color: #854d0e; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; margin-top: 3px; display: inline-block; }
+        .tag-p { font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
+        .tag-qr { background: #e0e7ff; color: #4338ca; }
+        .tag-ef { background: #dcfce7; color: #15803d; }
+
+        .pago-selector { display: flex; gap: 8px; margin-bottom: 15px; }
+        .btn-pago { background: #f1f5f9; color: var(--gray); border: 2px solid transparent; flex: 1; padding: 10px; margin: 0; }
+        .btn-pago.active { border-color: var(--primary); background: #eff6ff; color: var(--primary); }
+
+        .qr-area { display: none; text-align: center; background: #f8fafc; padding: 10px; border-radius: 10px; margin-bottom: 15px; border: 1px dashed #cbd5e1; }
+        .qr-area img { width: 160px; height: 160px; border-radius: 8px; border: 1px solid #ddd; }
+        .qr-alerta { font-size: 10px; font-weight: bold; color: white; padding: 6px; border-radius: 4px; margin-bottom: 8px; }
+
+        .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: none; align-items: center; justify-content: center; padding: 20px; z-index: 100; }
+        .modal-content { background: white; padding: 20px; border-radius: 20px; width: 100%; max-width: 400px; max-height: 85vh; overflow-y: auto; }
+        label { font-size: 11px; font-weight: bold; color: var(--gray); text-transform: uppercase; display: block; margin-bottom: 5px; }
+        input, select, textarea { width: 100%; padding: 10px; margin: 4px 0 12px 0; border: 1px solid #e2e8f0; border-radius: 8px; box-sizing: border-box; font-size: 15px; }
+
+        .asistencia-item { display: flex; align-items: center; gap: 10px; padding: 10px; border-bottom: 1px solid #eee; cursor: pointer; }
+        .asistencia-item input { width: 18px; height: 18px; margin: 0; }
+    </style>
+</head>
+<body>
+
+<header>📱 venta de productos</header>
+
+<div class="container">
+    <div id="status-banner" class="status-banner status-off">🔴 JORNADA CERRADA</div>
+
+    <div id="panel-inicio">
+        <button class="btn-start" onclick="abrirAsistencia()">🚀 Empezar Jornada Laboral</button>
+        <button class="btn-hist" onclick="verHistorial()">📆 Historial de Cierres</button>
+    </div>
+
+    <div id="panel-venta" style="display: none;">
+        <div class="card">
+            <button class="btn-hist" style="background:var(--gray)" onclick="abrirAsistencia(true)">👥 Gestionar Staff</button>
+            <h3 style="margin:0 0 10px 0">Ventas del Turno</h3>
+            
+            <div id="lista-ventas"></div>
+            <div id="resumen-totales" style="margin-top:15px; padding-top:10px; border-top: 1px solid #eee;"></div>
+        </div>
+        
+        <button class="btn-sale" onclick="abrirModalVenta()">➕ Registrar Venta</button>
+        <button class="btn-end" style="background:var(--warning)" onclick="abrirModalGasto()">💸 Registrar Gasto / Salida</button>
+        <button class="btn-end" onclick="terminarJornada()">🏁 Terminar Jornada (Cierre)</button>
+    </div>
+</div>
+
+<div class="modal" id="modal-asistencia">
+    <div class="modal-content">
+        <h3>¿Quiénes trabajan hoy?</h3>
+        <div id="lista-asistencia-check">
+            </div>
+        <button class="btn-start" style="margin-top:15px" onclick="confirmarInicioJornada()">Confirmar e Iniciar</button>
+        <button style="background:none; color: var(--gray);" onclick="cerrarModal('modal-asistencia')">Cancelar</button>
+    </div>
+</div>
+
+<div class="modal" id="modal-venta">
+    <div class="modal-content">
+        <h3 style="margin-top:0">Nueva Venta</h3>
+        
+        <label>Vendedor</label>
+        <select id="v-vendedor">
+            </select>
+
+        <label>Nombre del Cliente</label>
+        <input type="text" id="v-cliente" placeholder="Nombre completo">
+
+        <label>Producto / Servicio</label>
+        <input type="text" id="v-nombre" placeholder="Ej: Vidrio Templado">
+
+        <div style="display: flex; gap: 8px;">
+            <div style="flex:1"><label>Precio Bs</label><input type="number" id="v-precio"></div>
+            <div style="flex:1"><label>Desc. Bs</label><input type="number" id="v-desc" value="0"></div>
+        </div>
+
+        <label>Método de Pago</label>
+        <div class="pago-selector">
+            <button class="btn-pago active" id="btn-efectivo" onclick="setMetodo('Efectivo')">💵 Efec.</button>
+            <button class="btn-pago" id="btn-qr" onclick="manejarSeleccionQR()">📱 QR</button>
+        </div>
+
+        <div id="qr-area" class="qr-area">
+            <div id="qr-alerta" class="qr-alerta"></div>
+            <img id="qr-imagen" src="" alt="Código QR">
+        </div>
+
+        <button class="btn-sale" onclick="registrarVenta()">Confirmar Venta</button>
+        <button style="background:none; color: var(--gray);" onclick="cerrarModal('modal-venta')">Cancelar</button>
+    </div>
+</div>
+
+<div class="modal" id="modal-gasto">
+    <div class="modal-content">
+        <h3 style="color:var(--warning)">Registrar Salida de Dinero</h3>
+        <label>Concepto / Motivo</label>
+        <input type="text" id="g-motivo" placeholder="Ej: Almuerzo personal">
+        <label>Monto Bs</label>
+        <input type="number" id="g-monto" placeholder="0.00">
+        <button class="btn-start" style="background:var(--warning)" onclick="registrarGasto()">Confirmar Salida</button>
+        <button style="background:none; color: var(--gray);" onclick="cerrarModal('modal-gasto')">Cancelar</button>
+    </div>
+</div>
+
+<div class="modal" id="modal-historial">
+    <div class="modal-content">
+        <button class="btn-sale" onclick="exportarSemanalWord()" style="background:#2b5797; margin-bottom:15px">📥 Descargar Reporte Semanal (.docx)</button>
+        <h3>Historial de Cierres</h3>
+        <div id="contenido-historial"></div>
+        <button class="btn-hist" onclick="cerrarModal('modal-historial')" style="margin-top:15px">Cerrar</button>
+    </div>
+</div>
+
+<div class="modal" id="modal-devolucion">
+    <div class="modal-content">
+        <h3 style="color:var(--danger)">Motivo de Devolución</h3>
+        <textarea id="dev-motivo" placeholder="Ej: Pantalla con manchas..." rows="3"></textarea>
+        <button class="btn-end" onclick="confirmarDevolucion()">Confirmar Devolución</button>
+        <button style="background:none; color:var(--gray);" onclick="cerrarModal('modal-devolucion')">Atrás</button>
+    </div>
+</div>
+
+<script>
+    // --- CONFIGURACIÓN INICIAL ---
+    const EMPLEADOS_NOMINA = ["Admin", "Willian", "Mariano", "Diogo", "leydi", "Yenny"];
+    const QR_BAJO = "https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=QR-MENOR-100";
+    const QR_ALTO = "https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=QR-MAYOR-100";
+
+    let jornada = JSON.parse(localStorage.getItem("lc_jornada")) || null;
+    let historial = JSON.parse(localStorage.getItem("lc_historial")) || [];
+    let metodoActual = 'Efectivo';
+    let indexDev = null;
+
+    function sonarSeleccion(checkbox) {
+    if (!checkbox.checked) return; // Si desmarca, no suena nada
+
+    switch(checkbox.value) {
+        case "Willian":
+            document.getElementById("snd-willian").play();
+            break;
+        case "Admin":
+             document.getElementById("snd-admin").play();
+            break;
+        case "Mariano":
+             document.getElementById("snd-mariano").play();
+            break;    
+        // Puedes añadir más casos aquí
+    }
+}
+
+    // --- MODIFICACIÓN PARA AÑADIR STAFF EN CURSO ---
+function abrirAsistencia(esEdicion = false) {
+    const contenedor = document.getElementById("lista-asistencia-check");
+    contenedor.innerHTML = "";
+    
+    EMPLEADOS_NOMINA.forEach(emp => {
+        // Si estamos editando, marcamos los que ya están activos
+        const estaActivo = (jornada && jornada.empleadosActivos.includes(emp)) ? "checked" : "";
+        
+        // Añadimos onchange="sonarSeleccion(this)" para que suene al marcar/desmarcar
+        contenedor.innerHTML += `
+            <label class="asistencia-item">
+                <input type="checkbox" name="emp-presente" value="${emp}" ${estaActivo} onchange="sonarSeleccion(this)"> 
+                ${emp}
+            </label>`;
+    });
+
+    // Cambiamos el texto del botón del modal según el caso
+    const btnModal = document.querySelector("#modal-asistencia .btn-start");
+    btnModal.innerText = esEdicion ? "Actualizar Staff" : "Confirmar e Iniciar";
+    btnModal.onclick = () => confirmarInicioJornada(esEdicion);
+
+    document.getElementById("modal-asistencia").style.display = "flex";
+}
+
+function confirmarInicioJornada(esEdicion = false) {
+    const seleccionados = Array.from(document.querySelectorAll('input[name="emp-presente"]:checked')).map(cb => cb.value);
+    
+    if (seleccionados.length === 0) return alert("Debes seleccionar al menos un empleado.");
+
+    if (esEdicion) {
+        // Solo actualizamos la lista de empleados sin tocar ventas ni gastos
+        jornada.empleadosActivos = seleccionados;
+        alert("Staff actualizado correctamente.");
+    } else {
+        // Inicio de jornada normal (resetea todo)
+        jornada = { 
+            inicio: new Date().toLocaleString(), 
+            ventas: [],
+            gastos: [],
+            empleadosActivos: seleccionados 
+        };
+    }
+
+    guardarSesion();
+    cerrarModal('modal-asistencia');
+    actualizarInterfaz();
+}
+
+    // --- LÓGICA DE GASTOS ---
+    function abrirModalGasto() {
+        document.getElementById("modal-gasto").style.display = "flex";
+    }
+
+    function registrarGasto() {
+        const motivo = document.getElementById("g-motivo").value;
+        const monto = parseFloat(document.getElementById("g-monto").value);
+
+        if (!motivo || isNaN(monto)) return alert("Completa motivo y monto");
+        if (!jornada.gastos) jornada.gastos = []; 
+
+        // --- SONIDO DE GASTO ---
+            const sGasto = document.getElementById("snd-gasto");
+            sGasto.currentTime = 0;
+            sGasto.play();
+            // -----------------------
+        
+        jornada.gastos.push({
+            motivo: motivo,
+            monto: monto,
+            hora: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})
+        });
+
+        guardarSesion();
+        cerrarModal('modal-gasto');
+        document.getElementById("g-motivo").value = "";
+        document.getElementById("g-monto").value = "";
+        actualizarInterfaz();
+    }
+
+    // --- LÓGICA DE VENTAS ---
+    function abrirModalVenta() {
+        const selectVendedor = document.getElementById("v-vendedor");
+        selectVendedor.innerHTML = jornada.empleadosActivos.map(e => `<option value="${e}">${e}</option>`).join("");
+        document.getElementById("modal-venta").style.display = "flex"; 
+        setMetodo('Efectivo'); 
+    }
+
+    function manejarSeleccionQR() {
+        const mayor = confirm("¿El monto es MAYOR a 100 Bs?");
+        setMetodo('QR', mayor ? 'ALTO' : 'BAJO');
+    }
+
+    function setMetodo(t, rango = '') {
+        metodoActual = t;
+        document.getElementById('btn-efectivo').classList.toggle('active', t === 'Efectivo');
+        document.getElementById('btn-qr').classList.toggle('active', t === 'QR');
+        
+        const area = document.getElementById('qr-area');
+        const img = document.getElementById('qr-imagen');
+        const alertBox = document.getElementById('qr-alerta');
+
+        if (t === 'QR') {
+            area.style.display = 'block';
+            if (rango === 'ALTO') {
+                img.src = QR_ALTO;
+                alertBox.innerText = "USAR: QR MONTOS ALTOS (>100)";
+                alertBox.style.background = "#1e293b"; 
+            } else {
+                img.src = QR_BAJO;
+                alertBox.innerText = "USAR: QR MONTOS BAJOS (≤100)";
+                alertBox.style.background = "#16a34a"; 
+            }
+        } else {
+            area.style.display = 'none';
+        }
+    }
+
+    function registrarVenta() {
+        const vend = document.getElementById("v-vendedor").value;
+        const cli = document.getElementById("v-cliente").value || "General";
+        const prod = document.getElementById("v-nombre").value;
+        const prec = parseFloat(document.getElementById("v-precio").value);
+        const desc = parseFloat(document.getElementById("v-desc").value) || 0;
+
+        if (!prod || isNaN(prec)) return alert("Completa Producto y Precio");
+
+        // --- DISPARAR SONIDO DE CAJA ---
+        const sonidoVenta = document.getElementById("snd-caja");
+        sonidoVenta.currentTime = 0; // Para que suene desde el inicio siempre
+        sonidoVenta.play();
+
+        jornada.ventas.push({
+            vendedor: vend, cliente: cli, nombre: prod,
+            precio: prec - desc, descuento: desc, metodo: metodoActual,
+            hora: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}),
+            devuelto: false, motivo: ""
+        });
+
+        guardarSesion();
+        cerrarModal('modal-venta');
+        document.getElementById("v-cliente").value = "";
+        document.getElementById("v-nombre").value = "";
+        document.getElementById("v-precio").value = "";
+        document.getElementById("v-desc").value = "0";
+        actualizarInterfaz();
+    }
+
+    function actualizarInterfaz() {
+        const banner = document.getElementById("status-banner");
+        if (jornada) {
+            document.getElementById("panel-inicio").style.display = "none";
+            document.getElementById("panel-venta").style.display = "block";
+            banner.innerText = "🟢 TURNO ACTIVO: " + jornada.empleadosActivos.join(", "); 
+            banner.className = "status-banner status-on";
+            renderVentas();
+        } else {
+            document.getElementById("panel-inicio").style.display = "block";
+            document.getElementById("panel-venta").style.display = "none";
+            banner.innerText = "🔴 JORNADA CERRADA"; banner.className = "status-banner status-off";
+        }
+    }
+
+    function renderVentas() {
+        const lista = document.getElementById("lista-ventas");
+        const res = document.getElementById("resumen-totales");
+        lista.innerHTML = "";
+        let ef = 0, qr = 0, dt = 0, gas = 0;
+
+        jornada.ventas.forEach((v, i) => {
+            if (!v.devuelto) {
+                if (v.metodo === 'Efectivo') ef += v.precio; else qr += v.precio;
+                dt += v.descuento;
+            }
+            lista.innerHTML += `
+                <div class="item ${v.devuelto ? 'devuelto' : ''}">
+                    <div class="item-info">
+                        <b>${v.nombre}</b>
+                        <small>👤 ${v.cliente} | ${v.hora}</small>
+                        <span class="tag-v">👤 ${v.vendedor}</span>
+                        <span class="tag-p ${v.metodo==='QR'?'tag-qr':'tag-ef'}">${v.metodo}</span>
+                        ${v.devuelto ? `<br><small style="color:red">Motivo: ${v.motivo}</small>` : ''}
+                    </div>
+                    <div style="text-align:right">
+                        <b>${v.precio} Bs</b><br>
+                        ${!v.devuelto ? `<button onclick="abrirDevolucion(${i})" style="width:auto; padding:2px 6px; background:none; border:1px solid red; color:red; font-size:10px; margin-top:5px">↩</button>` : ''}
+                    </div>
+                </div>`;
+        });
+
+        if(jornada.gastos) {
+            jornada.gastos.forEach(g => gas += g.monto);
+        }
+
+        res.innerHTML = `
+            <div style="display:flex; justify-content:space-between; font-size:13px"><span>💵 Efectivo:</span> <b>${ef} Bs</b></div>
+            <div style="display:flex; justify-content:space-between; font-size:13px"><span>📱 QR:</span> <b>${qr} Bs</b></div>
+            <div style="display:flex; justify-content:space-between; font-size:13px; color:red"><span>📉 Descuentos:</span> <b>${dt} Bs</b></div>
+            <div style="display:flex; justify-content:space-between; font-size:13px; color:orange"><span>💸 Gastos:</span> <b>${gas} Bs</b></div>
+            <h2 style="margin:10px 0 0 0; color:#2563eb">TOTAL CAJA: ${ef + qr - gas} Bs</h2>
+            <small style="color:gray">Ventas totales: ${ef + qr} Bs</small>`;
+    }
+
+    function terminarJornada() {
+        if (!confirm("¿Deseas cerrar la jornada y enviar el reporte?")) return;
+        
+        let totalEfectivo = 0, totalQR = 0, totalDescuentos = 0, totalGastoMonto = 0;
+        let cuerpoVentas = "", cuerpoGastos = "";
+
+        // Procesar Ventas
+        jornada.ventas.forEach((v, index) => {
+            if (!v.devuelto) {
+                if (v.metodo === 'Efectivo') totalEfectivo += v.precio; else totalQR += v.precio;
+                totalDescuentos += v.descuento;
+                cuerpoVentas += `${index + 1}. ${v.nombre}\n`;
+                cuerpoVentas += `   Vendedor: ${v.vendedor}\n`;
+                cuerpoVentas += `   Precio: ${v.precio} Bs | Pago: ${v.metodo}\n`;
+                if(v.descuento > 0) cuerpoVentas += `   Desc: -${v.descuento} Bs\n`;
+                cuerpoVentas += `--------------------------\n`;
+            } else {
+                cuerpoVentas += `${index + 1}. [DEVUELTO] ${v.nombre}\n`;
+                cuerpoVentas += `   Vendedor: ${v.vendedor}\n`;
+                cuerpoVentas += `   Motivo: ${v.motivo}\n` ;
+                cuerpoVentas += `   Precio: ${v.precio} Bs | Pago: ${v.metodo}\n`;
+                cuerpoVentas += `--------------------------\n`;
+            }
+        });
+
+        // Procesar Gastos (Separado del loop de ventas)
+        if (jornada.gastos && jornada.gastos.length > 0) {
+            cuerpoGastos = `\n💸 *DETALLE DE GASTOS:*\n`;
+            jornada.gastos.forEach(g => {
+                totalGastoMonto += g.monto;
+                cuerpoGastos += `• ${g.motivo}: -${g.monto} Bs\n`;
+            });
+        } else {
+            cuerpoGastos = `\n💸 *GASTOS:* Sin gastos.\n`;
+        }
+
+        let totalFinalVentas = totalEfectivo + totalQR;
+        let efectivoNeto = totalEfectivo + totalQR - totalGastoMonto;
+
+        // Guardar en historial
+        historial.push({
+            fecha: jornada.inicio,
+            total: totalFinalVentas,
+            staff: jornada.empleadosActivos
+        });
+        localStorage.setItem("lc_historial", JSON.stringify(historial));
+
+        // Construir Mensaje de WhatsApp
+        let msg = `📱 *CIERRE LC CELULARES*\n`;
+        msg += `📅 *Fecha:* ${jornada.inicio}\n`;
+        msg += `👥 *Staff:* ${jornada.empleadosActivos.join(", ")}\n\n`;
+        msg += `📝 *VENTAS:*\n${cuerpoVentas}`;
+        msg += cuerpoGastos;
+        msg += `\n💰 *RESUMEN:* \n`;
+        msg += `💵 Efectivo Ventas: ${totalEfectivo} Bs\n`;
+        msg += `📱 QR: ${totalQR} Bs\n`;
+        msg += `📉 Descuentos: ${totalDescuentos} Bs\n`;
+        msg += `💸 Total Gastos: ${totalGastoMonto} Bs\n`;
+        msg += `--------------------------\n`;
+        msg += `✅ *EFECTIVO EN CAJA: ${efectivoNeto} Bs*\n`;
+        msg += `🚀 *TOTAL DEL DÍA: ${totalFinalVentas} Bs*`;
+
+        window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`);
+
+        jornada = null;
+        localStorage.removeItem("lc_jornada");
+        actualizarInterfaz();
+    }
+
+    function verHistorial() {
+        const cont = document.getElementById("contenido-historial");
+        cont.innerHTML = historial.length ? "" : "Sin registros.";
+        [...historial].reverse().forEach(h => {
+            cont.innerHTML += `<div style="padding:10px; border-bottom:1px solid #eee; font-size:12px">
+                <b>📅 ${h.fecha}</b><br>Total: ${h.total} Bs | Staff: ${h.staff ? h.staff.join(", ") : 'N/A'}</div>`;
+        });
+        document.getElementById("modal-historial").style.display = "flex";
+    }
+
+    function abrirDevolucion(i) { indexDev = i; document.getElementById("modal-devolucion").style.display = "flex"; }
+    function confirmarDevolucion() {
+        const m = document.getElementById("dev-motivo").value;
+        if(!m) return alert("Indica el motivo");
+        jornada.ventas[indexDev].devuelto = true;
+        jornada.ventas[indexDev].motivo = m;
+        guardarSesion();
+        cerrarModal('modal-devolucion');
+        actualizarInterfaz();
+        document.getElementById("dev-motivo").value = "";
+    }
+
+    function guardarSesion() { localStorage.setItem("lc_jornada", JSON.stringify(jornada)); }
+    function cerrarModal(id) { document.getElementById(id).style.display = "none"; }
+    actualizarInterfaz();
+    function exportarSemanalWord() {
+    if (historial.length === 0) return alert("No hay datos en el historial para exportar.");
+
+    // Agrupar por semana
+    const semanas = {};
+    historial.forEach(cierre => {
+        const fecha = new Date(cierre.fecha.split(',')[0].split('/').reverse().join('-')); // Ajuste de formato fecha
+        const inicioAnio = new Date(fecha.getFullYear(), 0, 1);
+        const numeroSemana = Math.ceil((((fecha - inicioAnio) / 86400000) + inicioAnio.getDay() + 1) / 7);
+        const clave = `Semana ${numeroSemana} - ${fecha.getFullYear()}`;
+        
+        if (!semanas[clave]) semanas[clave] = { totalVentas: 0, totalCaja: 0, cierres: [] };
+        semanas[clave].totalVentas += cierre.total;
+        semanas[clave].totalCaja += (cierre.efectivoCaja || 0);
+        semanas[clave].cierres.push(cierre);
+    });
+
+    
+
+    // Crear documento Word
+    const doc = new docx.Document({
+        sections: [{
+            properties: {},
+            children: [
+                new docx.Paragraph({ text: "REPORTE SEMANAL - LC CELULARES", heading: docx.HeadingLevel.HEADING_1, alignment: docx.AlignmentType.CENTER }),
+                new docx.Paragraph({ text: `Generado el: ${new Date().toLocaleString()}`, alignment: docx.AlignmentType.CENTER }),
+                new docx.Paragraph({ text: "" }), // Espacio
+                
+                ...Object.keys(semanas).map(sem => {
+                    const s = semanas[sem];
+                    return [
+                        new docx.Paragraph({ text: sem, heading: docx.HeadingLevel.HEADING_2, spacing: { before: 400 } }),
+                        new docx.Paragraph({ text: `💰 Total Ventas Brutas: ${s.totalVentas.toFixed(2)} Bs` }),
+                        new docx.Paragraph({ text: `💵 Total Efectivo Neto (Post-Gastos): ${s.totalCaja.toFixed(2)} Bs` }),
+                        new docx.Paragraph({ text: `💸 Gastos Estimados: ${(s.totalVentas - s.totalCaja).toFixed(2)} Bs`, color: "FF0000" }),
+                        new docx.Paragraph({ text: "----------------------------------------------------" })
+                    ];
+                }).flat()
+            ]
+        }]
+    });
+
+    docx.Packer.toBlob(doc).then(blob => {
+        saveAs(blob, `Reporte_Semanal_LC_Celulares.docx`);
+    });
+}
+</script>
+
+<audio id="snd-caja" src="soun3d/sound1.mp" preload="auto"></audio>
+<audio id="snd-gasto" src="sound/sound2.mp3" preload="auto"></audio>
+<audio id="snd-willian" src="sound/bochi.mp3" preload="auto"></audio>
+<audio id="snd-admin" src="sound/giga chad.mp3" preload="auto"></audio>
+<audio id="snd-mariano" src="sound/mariano.mp3" preload="auto"></audio>
+</body>
+</html>
