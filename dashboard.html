@@ -1,0 +1,1036 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>LC Celulares - Sistema POS Pro</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    
+    <!-- Librerías originales para Word y Descargas -->
+    <script src="https://unpkg.com/docx@7.1.0/build/index.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+
+    <!--
+    querido programador:
+    Cuando escribi este código, solo Dios 
+    y yo sabiamos cómo funcionaba
+    ¡Ahora solo Dios lo sabe!
+    
+    total_horas_desperdiciadas_aqui = 168 (¡Sumamos 5 más con los nuevos requerimientos!)
+    -->
+
+    <style>
+        body {
+            font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f4f6f9;
+            overflow-x: hidden;
+        }
+        
+        /* Sidebar (Menú Lateral) */
+        .sidebar {
+            width: 260px;
+            height: 100vh;
+            overflow-y: auto;
+            overflow-x: hidden;
+            background-color: #ffffff;
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 1040;
+            transition: transform 0.3s ease-in-out;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.05);
+            overflow-y: auto;
+        }
+        .sidebar-header { padding: 20px; border-bottom: 1px solid #f0f0f0; }
+        .nav-link { color: #6c757d; padding: 12px 20px; border-radius: 8px; margin: 4px 15px; transition: all 0.2s; cursor: pointer; }
+        .nav-link:hover, .nav-link.active { background-color: #f0f4ff; color: #0d6efd; font-weight: 600; }
+        .nav-link i { margin-right: 10px; font-size: 1.1rem; }
+        .form-check-label {color: #212529 !important;
+}
+
+        /* Contenido Principal */
+        .main-content { margin-left: 260px; transition: margin-left 0.3s; min-height: 100vh; display: flex; flex-direction: column;}
+        .top-navbar { background-color: #ffffff; padding: 12px 20px; }
+        .view-section { display: none; animation: fadeIn 0.3s ease; flex-grow: 1;}
+        .view-section.active { display: block; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Tarjetas del Dashboard */
+        .stat-card { border: none; transition: transform 0.2s; border-radius: 16px;}
+        .stat-card:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.08) !important; }
+        .icon-box { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; }
+
+        /* Bloqueo cuando la jornada está cerrada */
+        .bloqueo-wrapper { position: relative; min-height: calc(100vh - 80px); display: flex; flex-direction: column; }
+        .bloqueo-jornada {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(255,255,255,0.90); backdrop-filter: blur(5px);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 50; border-radius: inherit; text-align: center; padding: 20px;
+        }
+
+        .qr-area { display: none; text-align: center; border: 1px dashed #cbd5e1; padding: 15px; border-radius: 10px; background: #f8fafc; }
+        .qr-area img { width: 150px; height: 150px; border-radius: 8px; }
+
+        /* Adaptación a Móviles */
+        .mobile-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1030; backdrop-filter: blur(2px); }
+        
+        @media (max-width: 768px) {
+            .sidebar { transform: translateX(-100%); }
+            .sidebar.show { transform: translateX(0); }
+            .main-content { margin-left: 0; }
+            .mobile-overlay.show { display: block; }
+            .top-navbar { padding: 10px 15px; }
+            .stat-card { margin-bottom: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Capa oscura para móviles al abrir menú -->
+    <div class="mobile-overlay" id="mobileOverlay" onclick="toggleMenu()"></div>
+
+    <!-- Menú Lateral -->
+    <nav class="sidebar" id="sidebar">
+        <div class="sidebar-header d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center text-primary fw-bold fs-5">
+                <i class="bi bi-phone me-2 fs-4"></i> LC Celulares
+            </div>
+            <button class="btn btn-sm btn-light d-md-none border-0" onclick="toggleMenu()"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="pt-3 pb-5">
+            <p class="text-muted small fw-bold px-4 mb-2 text-uppercase">Navegación</p>
+            <a class="nav-link active" id="nav-dashboard" onclick="mostrarVista('dashboard')"><i class="bi bi-grid-1x2"></i> Panel Principal</a>
+            <a class="nav-link" id="nav-pos" onclick="mostrarVista('pos')"><i class="bi bi-cart-plus"></i> Punto de Venta</a>
+            
+            <p class="text-muted small fw-bold px-4 mt-4 mb-2 text-uppercase">Operaciones</p>
+            <a class="nav-link" data-bs-toggle="modal" data-bs-target="#modalGasto"><i class="bi bi-cash-stack"></i> Registrar Gasto</a>
+            <a class="nav-link" onclick="verHistorial()"><i class="bi bi-clock-history"></i> Historial de Cierres</a>
+        
+            <a class="nav-link text-danger fw-bold" onclick="iniciarCierreJornada()"><i class="bi bi-flag-fill"></i> Terminar Jornada</a>
+
+            
+            <p class="text-muted small fw-bold px-4 mt-4 mb-2 text-uppercase">Sistema</p>
+            <a class="nav-link text-info" onclick="abrirAsistencia(true)"><i class="bi bi-person-check"></i> Gestionar Staff</a>
+            <a class="nav-link text-secondary" data-bs-toggle="modal" data-bs-target="#modalAgregarStaff"><i class="bi bi-person-plus"></i> Agregar Staff</a>
+            <a class="nav-link text-secondary" data-bs-toggle="modal" data-bs-target="#modalAyuda"><i class="bi bi-question-circle"></i> Ayuda</a>
+            
+        </div>
+    </nav>
+
+    <!-- Contenedor Principal -->
+    <main class="main-content" id="mainContent">
+        
+        <!-- Barra Superior (Top Navbar) -->
+        <header class="top-navbar shadow-sm d-flex justify-content-between align-items-center sticky-top">
+            <div class="d-flex align-items-center gap-3">
+                <button class="btn btn-light d-md-none border shadow-sm" onclick="toggleMenu()"><i class="bi bi-list fs-5"></i></button>
+                <h4 class="mb-0 fw-bold text-dark d-none d-sm-block" id="titulo-pagina">Panel Principal</h4>
+            </div>
+            <div class="d-flex align-items-center">
+                <div id="status-banner" class="badge bg-danger p-2 px-3 fs-6 rounded-pill shadow-sm">
+                    🔴 JORNADA CERRADA
+                </div>
+            </div>
+        </header>
+
+        <div class="container-fluid p-3 p-md-4 bloqueo-wrapper flex-grow-1">
+            
+            <!-- Pantalla de Bloqueo General (Aplica a ambas vistas) -->
+            <div id="bloqueo-jornada" class="bloqueo-jornada">
+                <div class="bg-white p-4 p-md-5 rounded-4 shadow-lg text-center border">
+                    <div class="bg-primary bg-opacity-10 text-primary rounded-circle d-inline-flex align-items-center justify-content-center mb-4" style="width: 80px; height: 80px;">
+                        <i class="bi bi-shop display-4"></i>
+                    </div>
+                    <h2 class="fw-bold text-dark mb-3">Jornada no iniciada</h2>
+                    <p class="text-muted fs-5 mb-4 max-w-md">Debes iniciar el turno y seleccionar al personal que trabajará hoy para acceder al Panel y al Punto de Venta.</p>
+                    <button class="btn btn-primary btn-lg rounded-pill px-5 py-3 shadow-sm fw-bold" onclick="abrirAsistencia()">
+                        <i class="bi bi-rocket-takeoff me-2"></i> Iniciar Jornada Ahora
+                    </button>
+                </div>
+            </div>
+
+            <!-- ================= VISTA 1: DASHBOARD ================= -->
+            <div id="vista-dashboard" class="view-section active">
+                <!-- Tarjetas de Resumen -->
+                <div class="row g-3 g-xl-4 mb-4">
+                    <div class="col-6 col-xl-3">
+                        <div class="card stat-card shadow-sm h-100 border-0">
+                            <div class="card-body p-3 p-md-4">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <p class="text-muted mb-1 small fw-semibold text-uppercase tracking-wide">Caja Fuerte Total</p>
+                                        <h3 class="fw-bold mb-0 text-primary text-truncate" id="dash-total-caja">0 Bs</h3>
+                                    </div>
+                                    <div class="icon-box bg-primary bg-opacity-10 text-primary d-none d-sm-flex"><i class="bi bi-safe2"></i></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-xl-3">
+                        <div class="card stat-card shadow-sm h-100 border-0">
+                            <div class="card-body p-3 p-md-4">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <p class="text-muted mb-1 small fw-semibold text-uppercase tracking-wide">Efectivo Físico</p>
+                                        <h3 class="fw-bold mb-0 text-success text-truncate" id="dash-efectivo">0 Bs</h3>
+                                    </div>
+                                    <div class="icon-box bg-success bg-opacity-10 text-success d-none d-sm-flex"><i class="bi bi-cash-stack"></i></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-xl-3">
+                        <div class="card stat-card shadow-sm h-100 border-0">
+                            <div class="card-body p-3 p-md-4">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <p class="text-muted mb-1 small fw-semibold text-uppercase tracking-wide">Ingresos QR</p>
+                                        <h3 class="fw-bold mb-0 text-info text-truncate" id="dash-qr">0 Bs</h3>
+                                    </div>
+                                    <div class="icon-box bg-info bg-opacity-10 text-info d-none d-sm-flex"><i class="bi bi-qr-code"></i></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-xl-3">
+                        <div class="card stat-card shadow-sm h-100 border-0">
+                            <div class="card-body p-3 p-md-4">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <p class="text-muted mb-1 small fw-semibold text-uppercase tracking-wide">Gastos / Salidas</p>
+                                        <h3 class="fw-bold mb-0 text-danger text-truncate" id="dash-gastos">0 Bs</h3>
+                                    </div>
+                                    <div class="icon-box bg-danger bg-opacity-10 text-danger d-none d-sm-flex"><i class="bi bi-arrow-down-right"></i></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Detalle Completo de Ventas del Turno -->
+                <div class="card border-0 shadow-sm rounded-4 mb-4">
+                    <div class="card-header bg-white border-bottom-0 pt-4 pb-2 px-4 d-flex justify-content-between align-items-center">
+                        <h5 class="fw-bold mb-0"><i class="bi bi-card-list me-2 text-primary"></i>Ventas del Turno Actual (Completas)</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive px-4 pb-4">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead class="table-light text-muted small text-uppercase">
+                                    <tr>
+                                        <th class="border-0 rounded-start">Producto</th>
+                                        <th class="border-0">Vendedor</th>
+                                        <th class="border-0">Pago</th>
+                                        <th class="border-0 text-end">Monto</th>
+                                        <th class="border-0 rounded-end"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="dashboard-lista-completa">
+                                    <!-- Generado por JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================= VISTA 2: PUNTO DE VENTA (POS) ================= -->
+            <div id="vista-pos" class="view-section">
+                <div class="row g-4">
+                    <!-- Formulario Nueva Venta -->
+                    <div class="col-xl-5 col-lg-6">
+                        <div class="card border-0 shadow-sm rounded-4 h-100 position-sticky" style="top: 80px;">
+                            <div class="card-header bg-primary text-white border-0 pt-3 pb-3 px-4 rounded-top-4">
+                                <h5 class="fw-bold mb-0"><i class="bi bi-cart-plus me-2"></i>Nueva Venta</h5>
+                            </div>
+                            <div class="card-body p-4">
+                                <div class="mb-3">
+                                    <label class="form-label small fw-bold text-muted">VENDEDOR</label>
+                                    <select id="v-vendedor" class="form-select bg-light border-0 py-2 fs-6"></select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label small fw-bold text-muted">CLIENTE (Opcional)</label>
+                                    <input type="text" id="v-cliente" class="form-control border rounded-3 py-2" placeholder="Cliente General">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label small fw-bold text-muted">PRODUCTO / SERVICIO</label>
+                                    <input type="text" id="v-nombre" class="form-control border rounded-3 py-2" placeholder="Ej: Vidrio Templado iPhone 13">
+                                </div>
+                                <div class="row g-3 mb-4">
+                                    <div class="col-6">
+                                        <label class="form-label small fw-bold text-muted">PRECIO (Bs)</label>
+                                        <input type="number" id="v-precio" class="form-control border-primary border-opacity-50 fs-5 fw-bold text-primary py-2" placeholder="0.00" onfocus="this.select()">
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label small fw-bold text-muted">DESCUENTO (Bs)</label>
+                                        <input type="number" id="v-desc" class="form-control border rounded-3 py-2" value="0" onfocus="this.select()">
+                                    </div>
+                                </div>
+
+                                <label class="form-label small fw-bold text-muted">MÉTODO DE PAGO</label>
+                                <div class="d-flex gap-2 mb-3">
+                                    <input type="radio" class="btn-check" name="pago" id="btn-efectivo" autocomplete="off" checked onchange="setMetodo('Efectivo')">
+                                    <label class="btn btn-outline-success w-50 py-2 fw-semibold" for="btn-efectivo"><i class="bi bi-cash me-1"></i> Efectivo</label>
+
+                                    <input type="radio" class="btn-check" name="pago" id="btn-qr" autocomplete="off" onchange="manejarSeleccionQR()">
+                                    <label class="btn btn-outline-info w-50 py-2 fw-semibold text-dark" for="btn-qr"><i class="bi bi-qr-code me-1"></i> QR</label>
+                                </div>
+
+                                <div id="qr-area" class="qr-area mb-4">
+                                    <div id="qr-alerta" class="badge w-100 mb-2 py-2 fs-6"></div>
+                                    <img id="qr-imagen" src="" alt="Código QR">
+                                </div>
+
+                                <button class="btn btn-primary w-100 rounded-pill py-3 fw-bold fs-5 shadow-sm mt-2 d-flex justify-content-center align-items-center" onclick="registrarVenta()">
+                                    <i class="bi bi-check2-circle me-2 fs-4"></i> Confirmar Venta
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tabla Últimas 5 Ventas -->
+                    <div class="col-xl-7 col-lg-6">
+                        <div class="card border-0 shadow-sm rounded-4 h-100">
+                            <div class="card-header bg-white border-0 pt-4 pb-0 px-4 d-flex justify-content-between align-items-center">
+                                <h5 class="fw-bold mb-0 text-secondary">Últimas 5 Ventas</h5>
+                                <!-- Botón Ver más conecta con el Dashboard -->
+                                <button class="btn btn-sm btn-light text-primary fw-bold px-3 rounded-pill" onclick="mostrarVista('dashboard')">
+                                    Ver más <i class="bi bi-arrow-right"></i>
+                                </button>
+                            </div>
+                            <div class="card-body p-0 mt-3">
+                                <div class="table-responsive px-3 pb-3">
+                                    <table class="table table-hover align-middle mb-0">
+                                        <tbody id="pos-lista-cortada">
+                                            <!-- Insertado vía JS -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div> <!-- End Container Fluid -->
+    </main>
+
+    <!-- ================= MODALES ================= -->
+    
+    <!-- Modal Confirmar Cierre de Jornada (NUEVO FLUJO) -->
+    <div class="modal fade" id="modalConfirmarCierre" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content rounded-4 border-0">
+                <div class="modal-body p-4 p-md-5 text-center">
+                    <div class="text-warning mb-3"><i class="bi bi-exclamation-triangle display-1"></i></div>
+                    <h3 class="fw-bold mb-3">Atención</h3>
+                    <p class="text-muted fs-5">Se ha intentado abrir WhatsApp para enviar el reporte de ventas.</p>
+                    <p class="fw-bold text-dark fs-5">¿El reporte se envió y registró correctamente en WhatsApp?</p>
+                    
+                    <div class="d-flex flex-column gap-3 mt-4">
+                        <button class="btn btn-success py-3 rounded-pill fw-bold fs-5 shadow-sm" onclick="confirmarCierreDefinitivo()">
+                            <i class="bi bi-check-circle me-2"></i> Sí, cerrar jornada
+                        </button>
+                        <button class="btn btn-outline-secondary py-2 rounded-pill fw-bold" onclick="cancelarCierre()">
+                            <i class="bi bi-x-circle me-2"></i> No, seguir editando / reenviar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Agregar Staff -->
+    <div class="modal fade" id="modalAgregarStaff" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content rounded-4 border-0">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title fw-bold text-secondary"><i class="bi bi-person-plus me-2"></i>Nuevo Vendedor</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-4">
+                        <label class="form-label small fw-bold text-muted">NOMBRE DEL STAFF</label>
+                        <input type="text" id="nuevo-staff-nombre" class="form-control border rounded-3 py-2" placeholder="Ej: Carlos">
+                    </div>
+                    <button class="btn btn-dark w-100 rounded-pill py-2 fw-bold shadow-sm" onclick="guardarNuevoStaff()">
+                        Guardar Staff
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Ayuda -->
+    <div class="modal fade" id="modalAyuda" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content rounded-4 border-0">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title fw-bold text-info"><i class="bi bi-info-circle me-2"></i>Centro de Ayuda</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-muted">
+                    <p><strong>1. ¿Cómo navegar?</strong> Usa el botón de menú arriba a la izquierda si estás en móvil. El "Panel Principal" muestra los totales, y el "Punto de Venta" es para registrar.</p>
+                    <p><strong>2. ¿Fallo al terminar la jornada?</strong> Si WhatsApp no se abre, la aplicación te preguntará si se envió. Simplemente presiona "No, seguir editando" y tus datos seguirán intactos.</p>
+                    <p><strong>3. Agregar Staff:</strong> Agrega nuevos nombres desde la barra lateral. Quedarán guardados en este dispositivo.</p>
+                </div>
+                <div class="modal-footer border-0 pt-0">
+                    <button type="button" class="btn btn-light w-100 rounded-pill fw-bold" data-bs-dismiss="modal">Entendido</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Asistencia -->
+    <div class="modal fade" id="modalAsistencia" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content rounded-4 border-0">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title fw-bold" id="titulo-asistencia">¿Quiénes trabajan hoy?</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="lista-asistencia-check" class="d-flex flex-column gap-2 mb-4" style="max-height: 40vh; overflow-y: auto;"></div>
+                    <button class="btn btn-success w-100 rounded-pill py-3 fs-5 fw-bold shadow-sm" id="btn-confirmar-asistencia">
+                        Confirmar e Iniciar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Gasto -->
+    <div class="modal fade" id="modalGasto" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content rounded-4 border-0">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title fw-bold text-danger"><i class="bi bi-arrow-down-circle me-2"></i>Registrar Gasto</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted">MOTIVO DEL GASTO</label>
+                        <input type="text" id="g-motivo" class="form-control border rounded-3 py-2" placeholder="Ej: Pasajes, Limpieza, Proveedor">
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label small fw-bold text-muted">MONTO A RETIRAR (Bs)</label>
+                        <input type="number" id="g-monto" class="form-control bg-light border-0 py-2 fs-5 text-danger fw-bold" placeholder="0.00" onfocus="this.select()">
+                    </div>
+                    <button class="btn btn-danger w-100 rounded-pill py-2 fw-bold shadow-sm" onclick="registrarGasto()">
+                        Confirmar Salida de Caja
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Devolución -->
+    <div class="modal fade" id="modalDevolucion" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content rounded-4 border-0">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title fw-bold text-danger">Devolver Venta</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <label class="form-label small fw-bold text-muted">MOTIVO DE DEVOLUCIÓN</label>
+                    <textarea id="dev-motivo" class="form-control bg-light border-0 mb-3" rows="3" placeholder="Ej: Falla de fábrica, Cambio por otro"></textarea>
+                    <button class="btn btn-danger w-100 rounded-pill fw-bold" onclick="confirmarDevolucion()">Confirmar Devolución</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Historial -->
+    <div class="modal fade" id="modalHistorial" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content rounded-4 border-0">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title fw-bold">Historial de Cierres</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <button class="btn btn-primary mb-4 rounded-pill px-4 py-2 shadow-sm fw-bold" onclick="exportarSemanalWord()">
+                        <i class="bi bi-file-earmark-word me-2"></i>Descargar Reporte Semanal (.docx)
+                    </button>
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Fecha y Hora</th>
+                                    <th>Personal en Turno</th>
+                                    <th class="text-end">Venta Total</th>
+                                </tr>
+                            </thead>
+                            <tbody id="contenido-historial-ui"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Audios (Mantenidos del original) -->
+    <audio id="snd-caja" src="sound/sound1.mp3" preload="auto"></audio>
+    <audio id="snd-gasto" src="soundsound2.mp3" preload="auto"></audio>
+    <audio id="snd-willian" src="sound/bochi.mp3" preload="auto"></audio>
+    <audio id="snd-admin" src="soundgiga chad.mp3" preload="auto"></audio>
+    <audio id="snd-mariano" src="soundmariano.mp3" preload="auto"></audio>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // Cargar Staff desde LocalStorage o usar valores por defecto
+        let STAFF_NOMINA = JSON.parse(localStorage.getItem("lc_staff")) || ["Admin", "Willian", "Mariano", "Daniela", "Yenny", "Yuri"];
+        
+        const QR_BAJO = "https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=QR-MENOR-100";
+        const QR_ALTO = "https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=QR-MAYOR-100";
+
+        let jornada = JSON.parse(localStorage.getItem("lc_jornada")) || null;
+        let historial = JSON.parse(localStorage.getItem("lc_historial")) || [];
+        let metodoActual = 'Efectivo';
+        let indexDev = null;
+        
+        // Variables para el flujo de WhatsApp
+        let ultimoMensajeWhatsApp = "";
+        let nuevoHistorialTemporal = null;
+
+        // Modales Bootstrap
+        let modalAsistenciaBS, modalGastoBS, modalDevolucionBS, modalHistorialBS, modalConfirmarCierreBS, modalAgregarStaffBS;
+
+        document.addEventListener("DOMContentLoaded", () => {
+            modalAsistenciaBS = new bootstrap.Modal(document.getElementById('modalAsistencia'));
+            modalGastoBS = new bootstrap.Modal(document.getElementById('modalGasto'));
+            modalDevolucionBS = new bootstrap.Modal(document.getElementById('modalDevolucion'));
+            modalHistorialBS = new bootstrap.Modal(document.getElementById('modalHistorial'));
+            modalConfirmarCierreBS = new bootstrap.Modal(document.getElementById('modalConfirmarCierre'));
+            modalAgregarStaffBS = new bootstrap.Modal(document.getElementById('modalAgregarStaff'));
+            
+            // Mostrar Dashboard por defecto
+            mostrarVista('dashboard');
+            actualizarInterfaz();
+        });
+
+        function toggleMenu() {
+            document.getElementById('sidebar').classList.toggle('show');
+            document.getElementById('mobileOverlay').classList.toggle('show');
+        }
+
+        function mostrarVista(idVista) {
+            // Ocultar todas
+            document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
+            
+            // Mostrar la seleccionada
+            document.getElementById(`vista-${idVista}`).classList.add('active');
+            
+            // Marcar nav link
+            const navLink = document.getElementById(`nav-${idVista}`);
+            if(navLink) navLink.classList.add('active');
+
+            // Cambiar título superior
+            const titulos = { 'dashboard': 'Panel Principal', 'pos': 'Punto de Venta' };
+            document.getElementById('titulo-pagina').innerText = titulos[idVista] || 'LC Celulares';
+
+            // Cerrar menú en móviles
+            if(window.innerWidth <= 768) {
+                document.getElementById('sidebar').classList.remove('show');
+                document.getElementById('mobileOverlay').classList.remove('show');
+            }
+        }
+
+        function sonarSeleccion(checkbox) {
+            if (!checkbox.checked) return;
+            try {
+                // Elimina acentos y espacios para buscar el ID del audio
+                let nombreAudio = checkbox.value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, '');
+                let audioId = "snd-" + nombreAudio;
+                let audio = document.getElementById(audioId);
+                if (audio) { audio.currentTime = 0; audio.play(); }
+            } catch(e) { console.log("Audio no encontrado"); }
+        }
+
+        function guardarNuevoStaff() {
+            const nombre = document.getElementById("nuevo-staff-nombre").value.trim();
+            if(!nombre) return alert("Ingresa un nombre.");
+            
+            if(!STAFF_NOMINA.includes(nombre)) {
+                STAFF_NOMINA.push(nombre);
+                localStorage.setItem("lc_staff", JSON.stringify(STAFF_NOMINA));
+                document.getElementById("nuevo-staff-nombre").value = "";
+                modalAgregarStaffBS.hide();
+                alert(`Staff '${nombre}' agregado exitosamente.`);
+                // Si la asistencia estaba abierta, actualizarla
+                if(document.getElementById('modalAsistencia').classList.contains('show')) {
+                    abrirAsistencia(true);
+                }
+            } else {
+                alert("Este nombre ya existe.");
+            }
+        }
+
+        function eliminarStaff(nombre) {
+
+    const confirmar = confirm(
+        `¿Seguro que deseas eliminar a ${nombre} del staff?`
+    );
+
+    if(!confirmar) return;
+
+    STAFF_NOMINA = STAFF_NOMINA.filter(
+        emp => emp !== nombre
+    );
+
+    localStorage.setItem(
+        "lc_staff",
+        JSON.stringify(STAFF_NOMINA)
+    );
+
+    // Si estaba activo en jornada lo elimina también
+    if(jornada && jornada.empleadosActivos.includes(nombre)) {
+
+        jornada.empleadosActivos =
+            jornada.empleadosActivos.filter(
+                emp => emp !== nombre
+            );
+
+        guardarSesion();
+    }
+    if(nombre === "Admin"){
+    return alert("No puedes eliminar al administrador principal.");
+}
+
+    abrirAsistencia(true);
+
+    actualizarInterfaz();
+
+    alert(`${nombre} fue eliminado del staff.`);
+}
+
+        function abrirAsistencia(esEdicion = false) {
+            const contenedor = document.getElementById("lista-asistencia-check");
+            contenedor.innerHTML = "";
+            
+            STAFF_NOMINA.forEach(emp => {
+
+    const idSeguro = emp
+        .toLowerCase()
+        .replace(/\s+/g, '-');
+
+    const estaActivo = (
+        jornada &&
+        jornada.empleadosActivos.includes(emp)
+    ) ? "checked" : "";
+
+    contenedor.innerHTML += `
+    <div class="d-flex align-items-center p-3 bg-light rounded-3 border mb-2">
+    
+        <input
+            class="form-check-input me-3"
+            style="width: 22px; height: 22px; margin-top: 0;"
+            type="checkbox"
+            name="emp-presente"
+            value="${emp}"
+            id="${idSeguro}"
+            ${estaActivo}
+            onchange="sonarSeleccion(this)"
+        >
+
+        <label
+            class="form-check-label fs-5 fw-semibold text-dark"
+            for="${idSeguro}"
+        >
+            ${emp}
+        </label>
+        </div>
+
+    <button
+    class="btn btn-sm text-danger border-0 p-1 ms-2"
+    onclick="eliminarStaff('${emp}')"
+    title="Eliminar staff"
+>
+    <i class="bi bi-trash3-fill fs-6"></i>
+</button>
+
+    </div>`;
+});
+
+            document.getElementById("titulo-asistencia").innerText = esEdicion ? "Actualizar Staff en Turno" : "¿Quiénes abren el turno?";
+            const btn = document.getElementById("btn-confirmar-asistencia");
+            btn.innerHTML = esEdicion ? "<i class='bi bi-arrow-repeat me-2'></i>Actualizar Personal" : "<i class='bi bi-play-circle-fill me-2'></i>Empezar Turno";
+            btn.onclick = () => confirmarInicioJornada(esEdicion);
+
+            modalAsistenciaBS.show();
+        }
+
+        function confirmarInicioJornada(esEdicion = false) {
+            const seleccionados = Array.from(document.querySelectorAll('input[name="emp-presente"]:checked')).map(cb => cb.value);
+            if (seleccionados.length === 0) return alert("Debes seleccionar al menos un vendedor.");
+
+            if (esEdicion) {
+                jornada.empleadosActivos = seleccionados;
+            } else {
+                jornada = { 
+                    inicio: new Date().toLocaleString(), 
+                    ventas: [], gastos: [], empleadosActivos: seleccionados 
+                };
+            }
+            guardarSesion();
+            modalAsistenciaBS.hide();
+            actualizarInterfaz();
+        }
+
+        function registrarGasto() {
+            const motivo = document.getElementById("g-motivo").value;
+            const monto = parseFloat(document.getElementById("g-monto").value);
+
+            if (!motivo || isNaN(monto) || monto <= 0) return alert("Completa motivo y un monto válido");
+            if (!jornada.gastos) jornada.gastos = []; 
+            
+            try { let sGasto = document.getElementById("snd-gasto"); sGasto.currentTime = 0; sGasto.play(); } catch(e){}
+            
+            jornada.gastos.push({ motivo, monto, hora: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) });
+
+            guardarSesion();
+            modalGastoBS.hide();
+            document.getElementById("g-motivo").value = "";
+            document.getElementById("g-monto").value = "";
+            actualizarInterfaz();
+        }
+
+        function manejarSeleccionQR() {
+            const mayor = confirm("¿El monto a cobrar será MAYOR a 100 Bs?");
+            setMetodo('QR', mayor ? 'ALTO' : 'BAJO');
+        }
+
+        function setMetodo(t, rango = '') {
+            metodoActual = t;
+            const area = document.getElementById('qr-area');
+            const img = document.getElementById('qr-imagen');
+            const alertBox = document.getElementById('qr-alerta');
+            
+            document.getElementById('btn-efectivo').checked = (t === 'Efectivo');
+            document.getElementById('btn-qr').checked = (t === 'QR');
+
+            if (t === 'QR') {
+                area.style.display = 'block';
+                if (rango === 'ALTO') {
+                    img.src = QR_ALTO;
+                    alertBox.innerText = "COBRO QR: MONTOS ALTOS (>100)";
+                    alertBox.className = "badge bg-dark w-100 mb-2 py-2 fs-6"; 
+                } else {
+                    img.src = QR_BAJO;
+                    alertBox.innerText = "COBRO QR: MONTOS BAJOS (≤100)";
+                    alertBox.className = "badge bg-info text-dark w-100 mb-2 py-2 fs-6"; 
+                }
+            } else {
+                area.style.display = 'none';
+            }
+        }
+
+        function registrarVenta() {
+            const vend = document.getElementById("v-vendedor").value;
+            const cli = document.getElementById("v-cliente").value || "General";
+            const prod = document.getElementById("v-nombre").value;
+            const prec = parseFloat(document.getElementById("v-precio").value);
+            const desc = parseFloat(document.getElementById("v-desc").value) || 0;
+
+            if (!prod || isNaN(prec) || prec <= 0) return alert("Debes indicar un Producto y un Precio válido.");
+            try { let sonido = document.getElementById("snd-caja"); sonido.currentTime = 0; sonido.play(); } catch(e){}
+
+            jornada.ventas.push({
+                vendedor: vend, cliente: cli, nombre: prod,
+                precio: prec - desc, descuento: desc, metodo: metodoActual,
+                hora: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}),
+                devuelto: false, motivo: ""
+            });
+
+            guardarSesion();
+            
+            // Limpiar form
+            document.getElementById("v-cliente").value = "";
+            document.getElementById("v-nombre").value = "";
+            document.getElementById("v-precio").value = "";
+            document.getElementById("v-desc").value = "0";
+            document.getElementById("btn-efectivo").click(); // reset pago
+            actualizarInterfaz();
+        }
+
+        function actualizarInterfaz() {
+            const bloqueo = document.getElementById("bloqueo-jornada");
+            const banner = document.getElementById("status-banner");
+            
+            if (jornada) {
+                bloqueo.style.display = "none";
+                banner.innerHTML = `<i class="bi bi-circle-fill small me-1"></i> TURNO ACTIVO: ${jornada.empleadosActivos.join(", ")}`; 
+                banner.className = "badge bg-success bg-opacity-25 text-success border border-success p-2 px-3 fs-6 rounded-pill shadow-sm";
+                
+                // Actualizar lista vendedores en el POS
+                const selectVendedor = document.getElementById("v-vendedor");
+                selectVendedor.innerHTML = jornada.empleadosActivos.map(e => `<option value="${e}">${e}</option>`).join("");
+                
+                renderEstadisticasYTablas();
+            } else {
+                bloqueo.style.display = "flex";
+                banner.innerHTML = "🔴 JORNADA CERRADA"; 
+                banner.className = "badge bg-danger p-2 px-3 fs-6 rounded-pill shadow-sm";
+                
+                // Limpiar contadores Dashboard
+                document.getElementById("dash-total-caja").innerText = "0 Bs";
+                document.getElementById("dash-efectivo").innerText = "0 Bs";
+                document.getElementById("dash-qr").innerText = "0 Bs";
+                document.getElementById("dash-gastos").innerText = "0 Bs";
+                document.getElementById("dashboard-lista-completa").innerHTML = "<tr><td colspan='5' class='text-center py-4 text-muted'>Sin actividad</td></tr>";
+                document.getElementById("pos-lista-cortada").innerHTML = "<tr><td class='text-center py-4 text-muted'>Sin ventas</td></tr>";
+            }
+        }
+
+        function renderEstadisticasYTablas() {
+            const listaCompleta = document.getElementById("dashboard-lista-completa");
+            const listaCortada = document.getElementById("pos-lista-cortada");
+            listaCompleta.innerHTML = "";
+            listaCortada.innerHTML = "";
+            
+            let ef = 0, qr = 0, gas = 0;
+
+            // Recorrer ventas para cálculos y HTML (Inverso para ver las más recientes arriba)
+            const ventasReversas = [...jornada.ventas].reverse();
+            
+            if(ventasReversas.length === 0) {
+                listaCompleta.innerHTML = "<tr><td colspan='5' class='text-center py-4 text-muted'>Aún no hay ventas en este turno.</td></tr>";
+                listaCortada.innerHTML = "<tr><td class='text-center py-4 text-muted'>Aún no hay ventas registradas.</td></tr>";
+            }
+
+            ventasReversas.forEach((v, revIndex) => {
+                // El index original real en jornada.ventas
+                const indexReal = jornada.ventas.length - 1 - revIndex; 
+                
+                if (!v.devuelto) {
+                    if (v.metodo === 'Efectivo') ef += v.precio; else qr += v.precio;
+                }
+                
+                let badgePago = v.metodo === 'QR' ? '<span class="badge bg-info text-dark bg-opacity-25 px-2 py-1">QR</span>' : '<span class="badge bg-success bg-opacity-25 text-success px-2 py-1">Efectivo</span>';
+                let trClass = v.devuelto ? 'text-decoration-line-through text-muted bg-light' : '';
+                let devueltoLabel = v.devuelto ? `<div class="text-danger small mt-1" style="font-size:0.75rem;"><i class="bi bi-arrow-return-left"></i> Devuelto: ${v.motivo}</div>` : '';
+                let descLabel = (v.descuento > 0 && !v.devuelto) ? `<div class="text-warning small mt-1" style="font-size:0.75rem;">-${v.descuento} Bs desc.</div>` : '';
+
+                // HTML Para Dashboard (Completo)
+                listaCompleta.innerHTML += `
+                    <tr class="${trClass}">
+                        <td>
+                            <span class="fw-bold text-dark d-block">${v.nombre}</span>
+                            <small class="text-muted"><i class="bi bi-clock"></i> ${v.hora}</small>
+                            ${devueltoLabel}
+                        </td>
+                        <td>
+                            <div class="fw-semibold"><i class="bi bi-person-badge text-secondary me-1"></i>${v.vendedor}</div>
+                            <small class="text-muted" style="font-size:0.8rem;">Cli: ${v.cliente}</small>
+                        </td>
+                        <td>${badgePago}</td>
+                        <td class="text-end">
+                            <span class="fw-bold fs-6">${v.precio} Bs</span>
+                            ${descLabel}
+                        </td>
+                        <td class="text-center">
+                            ${!v.devuelto ? `<button class="btn btn-sm btn-outline-danger border-0 rounded-circle" onclick="abrirDevolucion(${indexReal})" title="Devolver Venta"><i class="bi bi-x-lg"></i></button>` : ''}
+                        </td>
+                    </tr>`;
+
+                // HTML Para POS (Solo las primeras 5)
+                if (revIndex < 5) {
+                    listaCortada.innerHTML += `
+                    <tr class="${trClass}">
+                        <td class="ps-0">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="fw-bold text-dark text-truncate d-inline-block" style="max-width: 150px;">${v.nombre}</span>
+                                <span class="fw-bold fs-6">${v.precio} Bs</span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <small class="text-muted"><i class="bi bi-person text-secondary"></i> ${v.vendedor} &nbsp;•&nbsp; ${v.hora}</small>
+                                ${badgePago}
+                            </div>
+                            ${devueltoLabel}
+                        </td>
+                    </tr>`;
+                }
+            });
+
+            if(jornada.gastos) { jornada.gastos.forEach(g => gas += g.monto); }
+
+            // Actualizar Tarjetas Dashboard
+            document.getElementById("dash-efectivo").innerText = ef.toFixed(2) + " Bs";
+            document.getElementById("dash-qr").innerText = qr.toFixed(2) + " Bs";
+            document.getElementById("dash-gastos").innerText = gas.toFixed(2) + " Bs";
+            
+            const totalCaja = (ef + qr - gas);
+            document.getElementById("dash-total-caja").innerText = totalCaja.toFixed(2) + " Bs";
+            // Color de caja según saldo
+            document.getElementById("dash-total-caja").className = `fw-bold mb-0 text-truncate ${totalCaja < 0 ? 'text-danger' : 'text-primary'}`;
+        }
+
+        function abrirDevolucion(indexReal) { 
+            indexDev = indexReal; 
+            document.getElementById("dev-motivo").value = "";
+            modalDevolucionBS.show(); 
+        }
+
+        function confirmarDevolucion() {
+            const m = document.getElementById("dev-motivo").value.trim();
+            if(!m) return alert("Por favor indica el motivo de la devolución.");
+            jornada.ventas[indexDev].devuelto = true;
+            jornada.ventas[indexDev].motivo = m;
+            guardarSesion();
+            modalDevolucionBS.hide();
+            actualizarInterfaz();
+        }
+
+        // --- NUEVO FLUJO DE CIERRE DE JORNADA ---
+        function iniciarCierreJornada() {
+            if(!jornada) return;
+            if (!confirm("¿Generar reporte de cierre y enviarlo por WhatsApp?")) return;
+            
+            let totalEfectivo = 0, totalQR = 0, totalDescuentos = 0, totalGastoMonto = 0;
+            let cuerpoVentas = "", cuerpoGastos = "";
+
+            jornada.ventas.forEach((v, index) => {
+                if (!v.devuelto) {
+                    if (v.metodo === 'Efectivo') totalEfectivo += v.precio; else totalQR += v.precio;
+                    totalDescuentos += v.descuento;
+                    cuerpoVentas += `${index + 1}. ${v.nombre}\n   Vend: ${v.vendedor}\n   Precio: ${v.precio} Bs | ${v.metodo}\n`;
+                    if(v.descuento > 0) cuerpoVentas += `   Desc: -${v.descuento} Bs\n`;
+                    cuerpoVentas += `--------------------------\n`;
+                } else {
+                    cuerpoVentas += `❌ ${index + 1}. [DEVUELTO] ${v.nombre}\n   Motivo: ${v.motivo}\n--------------------------\n`;
+                }
+            });
+
+            if (jornada.gastos && jornada.gastos.length > 0) {
+                cuerpoGastos = `\n💸 *DETALLE DE GASTOS:*\n`;
+                jornada.gastos.forEach(g => {
+                    totalGastoMonto += g.monto;
+                    cuerpoGastos += `• ${g.motivo}: -${g.monto} Bs\n`;
+                });
+            } else { cuerpoGastos = `\n💸 *GASTOS:* Sin gastos.\n`; }
+
+            let totalFinalVentas = totalEfectivo + totalQR;
+            let efectivoNeto = totalEfectivo + totalQR - totalGastoMonto;
+
+            // Preparamos los datos temporales, NO guardamos todavía en el historial
+            nuevoHistorialTemporal = {
+                fecha: jornada.inicio,
+                total: totalFinalVentas,
+                efectivoCaja: efectivoNeto,
+                staff: jornada.empleadosActivos
+            };
+
+            let msg = `📱 *CIERRE LC CELULARES*\n📅 *Fecha:* ${jornada.inicio}\n👥 *Staff:* ${jornada.empleadosActivos.join(", ")}\n\n📝 *VENTAS:*\n${cuerpoVentas}${cuerpoGastos}\n💰 *RESUMEN FINAL:* \n💵 Efectivo Ventas: ${totalEfectivo} Bs\n📱 QR Transferencias: ${totalQR} Bs\n📉 Descuentos Dados: ${totalDescuentos} Bs\n💸 Total Gastos: ${totalGastoMonto} Bs\n--------------------------\n✅ *EFECTIVO ESPERADO EN CAJA: ${efectivoNeto} Bs*\n🚀 *VENTA TOTAL DEL DÍA: ${totalFinalVentas} Bs*`;
+            
+            // 1. Abre WhatsApp
+            window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+            
+            // 2. Muestra modal de confirmación de seguridad
+            modalConfirmarCierreBS.show();
+        }
+
+        // Si el usuario confirma que todo salió bien en WhatsApp
+        function confirmarCierreDefinitivo() {
+            if(nuevoHistorialTemporal) {
+                historial.push(nuevoHistorialTemporal);
+                localStorage.setItem("lc_historial", JSON.stringify(historial));
+            }
+            
+            jornada = null;
+            localStorage.removeItem("lc_jornada");
+            nuevoHistorialTemporal = null;
+            
+            modalConfirmarCierreBS.hide();
+            mostrarVista('dashboard'); // Volver al inicio
+            actualizarInterfaz();
+        }
+
+        // Si falló WhatsApp y necesita seguir editando
+        function cancelarCierre() {
+            nuevoHistorialTemporal = null;
+            modalConfirmarCierreBS.hide();
+            // La jornada sigue activa, no se borró nada
+        }
+
+        function verHistorial() {
+            const cont = document.getElementById("contenido-historial-ui");
+            cont.innerHTML = historial.length ? "" : "<tr><td colspan='3' class='text-center text-muted py-4'>No hay cierres registrados aún.</td></tr>";
+            
+            [...historial].reverse().forEach(h => {
+                cont.innerHTML += `
+                    <tr>
+                        <td>
+                            <span class="fw-bold text-dark d-block"><i class="bi bi-calendar-check me-2 text-primary"></i>${h.fecha.split(',')[0]}</span>
+                            <small class="text-muted">${h.fecha.split(',')[1] || ''}</small>
+                        </td>
+                        <td><small>${h.staff ? h.staff.join(", ") : 'N/A'}</small></td>
+                        <td class="text-end fw-bold text-success fs-6">${h.total} Bs</td>
+                    </tr>`;
+            });
+            modalHistorialBS.show();
+        }
+
+        function exportarSemanalWord() {
+            if (historial.length === 0) return alert("No hay datos en el historial para exportar.");
+            
+            const semanas = {};
+            historial.forEach(cierre => {
+                // Parsea la fecha "DD/MM/YYYY, HH:MM:SS"
+                const fechaStr = cierre.fecha.split(',')[0];
+                const partes = fechaStr.split('/');
+                let fechaObj;
+                // Maneja formatos DD/MM/YYYY o MM/DD/YYYY según configuración regional
+                if(partes[2] && partes[2].length === 4) { fechaObj = new Date(`${partes[2]}-${partes[1]}-${partes[0]}`); } 
+                else { fechaObj = new Date(fechaStr); } // Fallback
+                
+                if(isNaN(fechaObj)) { fechaObj = new Date(); } // Fallback emergencia
+                
+                const inicioAnio = new Date(fechaObj.getFullYear(), 0, 1);
+                const numeroSemana = Math.ceil((((fechaObj - inicioAnio) / 86400000) + inicioAnio.getDay() + 1) / 7);
+                const clave = `Semana ${numeroSemana} - Año ${fechaObj.getFullYear()}`;
+                
+                if (!semanas[clave]) semanas[clave] = { totalVentas: 0, totalCaja: 0, cierres: [] };
+                semanas[clave].totalVentas += cierre.total;
+                semanas[clave].totalCaja += (cierre.efectivoCaja || 0);
+                semanas[clave].cierres.push(cierre);
+            });
+
+            const doc = new docx.Document({
+                sections: [{
+                    properties: {},
+                    children: [
+                        new docx.Paragraph({ text: "REPORTE DE VENTAS - LC CELULARES", heading: docx.HeadingLevel.HEADING_1, alignment: docx.AlignmentType.CENTER }),
+                        new docx.Paragraph({ text: `Generado el: ${new Date().toLocaleString()}`, alignment: docx.AlignmentType.CENTER }),
+                        new docx.Paragraph({ text: "" }), 
+                        
+                        ...Object.keys(semanas).map(sem => {
+                            const s = semanas[sem];
+                            return [
+                                new docx.Paragraph({ text: sem, heading: docx.HeadingLevel.HEADING_2, spacing: { before: 400 } }),
+                                new docx.Paragraph({ text: `💰 Ventas Brutas Totales: ${s.totalVentas.toFixed(2)} Bs` }),
+                                new docx.Paragraph({ text: `💵 Efectivo Neto Acumulado (Post-Gastos): ${s.totalCaja.toFixed(2)} Bs` }),
+                                new docx.Paragraph({ text: `💸 Salidas/Gastos Estimados: ${(s.totalVentas - s.totalCaja).toFixed(2)} Bs`, color: "FF0000" }),
+                                new docx.Paragraph({ text: "----------------------------------------------------" })
+                            ];
+                        }).flat()
+                    ]
+                }]
+            });
+
+            docx.Packer.toBlob(doc).then(blob => {
+                saveAs(blob, `Reporte_LC_Celulares_${new Date().getTime()}.docx`);
+            });
+        }
+
+        function guardarSesion() { localStorage.setItem("lc_jornada", JSON.stringify(jornada)); }
+    </script>
+</body>
+</html>
